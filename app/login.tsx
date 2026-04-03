@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
@@ -13,7 +13,9 @@ import {
 import { StatusBar } from "expo-status-bar";
 import { Link, router } from "expo-router";
 import { Controller, useForm } from "react-hook-form";
+import { ThemeToggle } from "./_components/ThemeToggle";
 import { useAuthFlow } from "./_layout";
+import { getStatusBarStyle, useTheme } from "./_theme";
 
 type LoginFormValues = {
   email: string;
@@ -21,30 +23,44 @@ type LoginFormValues = {
 };
 
 export default function LoginScreen() {
-  const { credentials } = useAuthFlow();
-  const { control, handleSubmit, setError } = useForm<LoginFormValues>({
+  const { theme, themeName } = useTheme();
+  const { credentials, rememberMe, setIsLoggedIn, setRememberMe } = useAuthFlow();
+  const [formError, setFormError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+
+  const {
+    control,
+    handleSubmit,
+    formState: { isSubmitting, isValid },
+  } = useForm<LoginFormValues>({
     defaultValues: { email: "", password: "" },
+    mode: "onChange",
   });
 
   const onSubmit = (values: LoginFormValues) => {
+    setFormError(null);
     const email = values.email.trim().toLowerCase();
 
     if (!credentials || credentials.email !== email || credentials.password !== values.password) {
-      setError("root", { message: "Invalid email or password." });
+      setFormError("Invalid email or password.");
       return;
     }
 
+    setIsLoggedIn(true);
     router.replace("/home");
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <StatusBar style="dark" />
+    <SafeAreaView style={[styles.safe, { backgroundColor: theme.colors.screen }]}>
+      <StatusBar style={getStatusBarStyle(themeName)} />
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-          <View style={styles.card}>
-            <Text style={styles.title}>Login</Text>
-            <Text style={styles.subtitle}>Enter your email and password.</Text>
+          <View style={[styles.card, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+            <View style={styles.headerRow}>
+              <Text style={[styles.title, { color: theme.colors.title }]}>Login</Text>
+              <ThemeToggle />
+            </View>
+            <Text style={[styles.subtitle, { color: theme.colors.mutedText }]}>Enter your email and password.</Text>
 
             <Controller
               control={control}
@@ -58,17 +74,26 @@ export default function LoginScreen() {
               }}
               render={({ field: { onChange, onBlur, value }, fieldState: { error } }) => (
                 <View style={styles.fieldWrap}>
-                  <Text style={styles.label}>Email</Text>
+                  <Text style={[styles.label, { color: theme.colors.text }]}>Email</Text>
                   <TextInput
-                    style={[styles.input, error ? styles.inputError : null]}
+                    style={[
+                      styles.input,
+                      {
+                        backgroundColor: theme.colors.inputBackground,
+                        borderColor: theme.colors.inputBorder,
+                        color: theme.colors.text,
+                      },
+                      error ? { borderColor: theme.colors.danger } : null,
+                    ]}
                     onBlur={onBlur}
                     onChangeText={onChange}
                     value={value}
                     keyboardType="email-address"
                     autoCapitalize="none"
                     placeholder="you@example.com"
+                    placeholderTextColor={theme.colors.placeholder}
                   />
-                  {error ? <Text style={styles.error}>{error.message}</Text> : null}
+                  {error ? <Text style={[styles.error, { color: theme.colors.danger }]}>{error.message}</Text> : null}
                 </View>
               )}
             />
@@ -85,35 +110,68 @@ export default function LoginScreen() {
               }}
               render={({ field: { onChange, onBlur, value }, fieldState: { error } }) => (
                 <View style={styles.fieldWrap}>
-                  <Text style={styles.label}>Password</Text>
-                  <TextInput
-                    style={[styles.input, error ? styles.inputError : null]}
-                    onBlur={onBlur}
-                    onChangeText={onChange}
-                    value={value}
-                    secureTextEntry
-                    placeholder="Enter password"
-                  />
-                  {error ? <Text style={styles.error}>{error.message}</Text> : null}
+                  <Text style={[styles.label, { color: theme.colors.text }]}>Password</Text>
+                  <View style={[styles.inputRow, { borderColor: error ? theme.colors.danger : theme.colors.inputBorder }]}>
+                    <TextInput
+                      style={[
+                        styles.inputInner,
+                        {
+                          backgroundColor: theme.colors.inputBackground,
+                          color: theme.colors.text,
+                        },
+                      ]}
+                      onBlur={onBlur}
+                      onChangeText={onChange}
+                      value={value}
+                      secureTextEntry={!showPassword}
+                      placeholder="Enter password"
+                      placeholderTextColor={theme.colors.placeholder}
+                    />
+                    <Pressable onPress={() => setShowPassword((prev) => !prev)}>
+                      <Text style={[styles.inlineAction, { color: theme.colors.primary }]}>
+                        {showPassword ? "Hide" : "Show"}
+                      </Text>
+                    </Pressable>
+                  </View>
+                  {error ? <Text style={[styles.error, { color: theme.colors.danger }]}>{error.message}</Text> : null}
                 </View>
               )}
             />
 
-            <Controller
-              control={control}
-              name="root"
-              render={({ fieldState: { error } }) =>
-                error ? <Text style={styles.error}>{error.message}</Text> : null
-              }
-            />
+            <Pressable
+              accessibilityRole="checkbox"
+              onPress={() => setRememberMe(!rememberMe)}
+              style={[styles.rememberRow, { borderColor: theme.colors.border }]}
+            >
+              <View style={[styles.rememberBox, { borderColor: theme.colors.inputBorder }]}>
+                <View
+                  style={[
+                    styles.rememberDot,
+                    { backgroundColor: rememberMe ? theme.colors.primary : "transparent" },
+                  ]}
+                />
+              </View>
+              <Text style={[styles.rememberText, { color: theme.colors.mutedText }]}>Remember me</Text>
+            </Pressable>
 
-            <Pressable style={styles.button} onPress={handleSubmit(onSubmit)}>
-              <Text style={styles.buttonText}>Login</Text>
+            {formError ? <Text style={[styles.error, { color: theme.colors.danger }]}>{formError}</Text> : null}
+
+            <Pressable
+              style={[
+                styles.button,
+                { backgroundColor: theme.colors.primary, opacity: !isValid || isSubmitting ? 0.6 : 1 },
+              ]}
+              disabled={!isValid || isSubmitting}
+              onPress={handleSubmit(onSubmit)}
+            >
+              <Text style={[styles.buttonText, { color: theme.colors.primaryText }]}>
+                {isSubmitting ? "Logging in..." : "Login"}
+              </Text>
             </Pressable>
 
             <Link href="/register" asChild>
               <Pressable>
-                <Text style={styles.link}>Need an account? Register</Text>
+                <Text style={[styles.link, { color: theme.colors.primary }]}>Need an account? Register</Text>
               </Pressable>
             </Link>
           </View>
@@ -124,37 +182,63 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#eef2f7" },
+  safe: { flex: 1 },
   flex: { flex: 1 },
   container: { flexGrow: 1, justifyContent: "center", padding: 18 },
   card: {
-    backgroundColor: "#ffffff",
     borderRadius: 14,
     padding: 16,
     borderWidth: 1,
-    borderColor: "#d7deea",
   },
-  title: { fontSize: 24, fontWeight: "700", color: "#0f172a" },
-  subtitle: { marginTop: 6, marginBottom: 14, color: "#475569", fontSize: 14 },
+  headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  title: { fontSize: 24, fontWeight: "700" },
+  subtitle: { marginTop: 6, marginBottom: 14, fontSize: 14 },
   fieldWrap: { marginBottom: 10 },
-  label: { fontSize: 13, marginBottom: 6, color: "#1e293b", fontWeight: "600" },
+  label: { fontSize: 13, marginBottom: 6, fontWeight: "600" },
   input: {
     borderWidth: 1,
-    borderColor: "#cbd5e1",
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    backgroundColor: "#ffffff",
   },
-  inputError: { borderColor: "#b42318" },
-  error: { marginTop: 5, color: "#b42318", fontSize: 12 },
+  error: { marginTop: 5, fontSize: 12 },
+  inputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+  },
+  inputInner: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingRight: 10,
+  },
+  inlineAction: { fontWeight: "800", fontSize: 12, paddingVertical: 10 },
+  rememberRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 2,
+    marginBottom: 10,
+  },
+  rememberBox: {
+    width: 18,
+    height: 18,
+    borderRadius: 5,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  rememberDot: { width: 10, height: 10, borderRadius: 3 },
+  rememberText: { fontSize: 13, fontWeight: "700" },
   button: {
     marginTop: 8,
-    backgroundColor: "#1d4ed8",
     borderRadius: 10,
     paddingVertical: 12,
     alignItems: "center",
   },
-  buttonText: { color: "#ffffff", fontWeight: "700", fontSize: 14 },
-  link: { textAlign: "center", marginTop: 14, color: "#1d4ed8", fontWeight: "700" },
+  buttonText: { fontWeight: "700", fontSize: 14 },
+  link: { textAlign: "center", marginTop: 14, fontWeight: "700" },
 });

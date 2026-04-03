@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
@@ -9,45 +9,51 @@ import {
   Text,
   TextInput,
   View,
+  Alert,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
-import { Link, router } from "expo-router";
+import { router } from "expo-router";
 import { Controller, useForm } from "react-hook-form";
 import { ThemeToggle } from "./_components/ThemeToggle";
 import { useAuthFlow } from "./_layout";
 import { getStatusBarStyle, useTheme } from "./_theme";
 
-type RegisterFormValues = {
-  email: string;
-  password: string;
-  confirmPassword: string;
+type ChangePasswordFormValues = {
+  currentPassword: string;
+  newPassword: string;
+  confirmNewPassword: string;
 };
 
-export default function RegisterScreen() {
+export default function ChangePasswordScreen() {
   const { theme, themeName } = useTheme();
-  const { setCredentials } = useAuthFlow();
-  const [showPassword, setShowPassword] = React.useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = React.useState(false);
+  const { credentials, isHydrated, isLoggedIn, setCredentials } = useAuthFlow();
+  const [showCurrent, setShowCurrent] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  useEffect(() => {
+    if (!isHydrated) return;
+    if (!isLoggedIn || !credentials) router.replace("/login");
+  }, [isHydrated, isLoggedIn, credentials]);
 
   const {
     control,
     handleSubmit,
     watch,
     formState: { isSubmitting, isValid },
-  } = useForm<RegisterFormValues>({
-    defaultValues: { email: "", password: "", confirmPassword: "" },
+  } = useForm<ChangePasswordFormValues>({
+    defaultValues: { currentPassword: "", newPassword: "", confirmNewPassword: "" },
     mode: "onChange",
   });
 
-  const password = watch("password");
+  const newPassword = watch("newPassword");
 
-  const onSubmit = (values: RegisterFormValues) => {
-    setCredentials({
-      email: values.email.trim().toLowerCase(),
-      password: values.password,
-    });
+  const onSubmit = (values: ChangePasswordFormValues) => {
+    if (!credentials) return;
 
-    router.replace("/setup");
+    setCredentials({ ...credentials, password: values.newPassword });
+    Alert.alert("Success", "Your password has been updated.");
+    router.replace("/home");
   };
 
   return (
@@ -57,79 +63,42 @@ export default function RegisterScreen() {
         <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
           <View style={[styles.card, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
             <View style={styles.headerRow}>
-              <Text style={[styles.title, { color: theme.colors.title }]}>Register</Text>
+              <Pressable onPress={() => router.back()}>
+                <Text style={[styles.backText, { color: theme.colors.primary }]}>Back</Text>
+              </Pressable>
               <ThemeToggle />
             </View>
-            <Text style={[styles.subtitle, { color: theme.colors.mutedText }]}>Create your account.</Text>
+
+            <Text style={[styles.title, { color: theme.colors.title }]}>Change Password</Text>
+            <Text style={[styles.subtitle, { color: theme.colors.mutedText }]}>Update your password (local only).</Text>
 
             <Controller
               control={control}
-              name="email"
+              name="currentPassword"
               rules={{
-                required: "Email is required.",
-                pattern: {
-                  value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-                  message: "Enter a valid email address.",
-                },
+                required: "Current password is required.",
+                validate: (value: string) =>
+                  !credentials || value === credentials.password || "Incorrect current password.",
               }}
               render={({ field: { onChange, onBlur, value }, fieldState: { error } }) => (
                 <View style={styles.fieldWrap}>
-                  <Text style={[styles.label, { color: theme.colors.text }]}>Email</Text>
-                  <TextInput
-                    style={[
-                      styles.input,
-                      {
-                        backgroundColor: theme.colors.inputBackground,
-                        borderColor: theme.colors.inputBorder,
-                        color: theme.colors.text,
-                      },
-                      error ? { borderColor: theme.colors.danger } : null,
-                    ]}
-                    onBlur={onBlur}
-                    onChangeText={onChange}
-                    value={value}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    placeholder="you@example.com"
-                    placeholderTextColor={theme.colors.placeholder}
-                  />
-                  {error ? <Text style={[styles.error, { color: theme.colors.danger }]}>{error.message}</Text> : null}
-                </View>
-              )}
-            />
-
-            <Controller
-              control={control}
-              name="password"
-              rules={{
-                required: "Password is required.",
-                minLength: {
-                  value: 6,
-                  message: "Password must be at least 6 characters.",
-                },
-              }}
-              render={({ field: { onChange, onBlur, value }, fieldState: { error } }) => (
-                <View style={styles.fieldWrap}>
-                  <Text style={[styles.label, { color: theme.colors.text }]}>Password</Text>
+                  <Text style={[styles.label, { color: theme.colors.text }]}>Current Password</Text>
                   <View style={[styles.inputRow, { borderColor: error ? theme.colors.danger : theme.colors.inputBorder }]}>
                     <TextInput
                       style={[
                         styles.inputInner,
-                        {
-                          backgroundColor: theme.colors.inputBackground,
-                          color: theme.colors.text,
-                        },
+                        { backgroundColor: theme.colors.inputBackground, color: theme.colors.text },
                       ]}
                       onBlur={onBlur}
                       onChangeText={onChange}
                       value={value}
-                      secureTextEntry={!showPassword}
-                      placeholder="Enter password"
+                      secureTextEntry={!showCurrent}
+                      placeholder="Enter current password"
                       placeholderTextColor={theme.colors.placeholder}
                     />
-                    <Pressable onPress={() => setShowPassword((prev) => !prev)}>
+                    <Pressable onPress={() => setShowCurrent((prev) => !prev)}>
                       <Text style={[styles.inlineAction, { color: theme.colors.primary }]}>
-                        {showPassword ? "Hide" : "Show"}
+                        {showCurrent ? "Hide" : "Show"}
                       </Text>
                     </Pressable>
                   </View>
@@ -140,33 +109,65 @@ export default function RegisterScreen() {
 
             <Controller
               control={control}
-              name="confirmPassword"
+              name="newPassword"
               rules={{
-                required: "Confirm Password is required.",
-                validate: (value: string) => value === password || "Passwords do not match.",
+                required: "New password is required.",
+                minLength: { value: 6, message: "New password must be at least 6 characters." },
+                validate: (value: string) => (!credentials || value !== credentials.password ? true : "Use a new password."),
               }}
               render={({ field: { onChange, onBlur, value }, fieldState: { error } }) => (
                 <View style={styles.fieldWrap}>
-                  <Text style={[styles.label, { color: theme.colors.text }]}>Confirm Password</Text>
+                  <Text style={[styles.label, { color: theme.colors.text }]}>New Password</Text>
                   <View style={[styles.inputRow, { borderColor: error ? theme.colors.danger : theme.colors.inputBorder }]}>
                     <TextInput
                       style={[
                         styles.inputInner,
-                        {
-                          backgroundColor: theme.colors.inputBackground,
-                          color: theme.colors.text,
-                        },
+                        { backgroundColor: theme.colors.inputBackground, color: theme.colors.text },
                       ]}
                       onBlur={onBlur}
                       onChangeText={onChange}
                       value={value}
-                      secureTextEntry={!showConfirmPassword}
-                      placeholder="Re-enter password"
+                      secureTextEntry={!showNew}
+                      placeholder="Enter new password"
                       placeholderTextColor={theme.colors.placeholder}
                     />
-                    <Pressable onPress={() => setShowConfirmPassword((prev) => !prev)}>
+                    <Pressable onPress={() => setShowNew((prev) => !prev)}>
                       <Text style={[styles.inlineAction, { color: theme.colors.primary }]}>
-                        {showConfirmPassword ? "Hide" : "Show"}
+                        {showNew ? "Hide" : "Show"}
+                      </Text>
+                    </Pressable>
+                  </View>
+                  {error ? <Text style={[styles.error, { color: theme.colors.danger }]}>{error.message}</Text> : null}
+                </View>
+              )}
+            />
+
+            <Controller
+              control={control}
+              name="confirmNewPassword"
+              rules={{
+                required: "Confirm new password is required.",
+                validate: (value: string) => value === newPassword || "Passwords do not match.",
+              }}
+              render={({ field: { onChange, onBlur, value }, fieldState: { error } }) => (
+                <View style={styles.fieldWrap}>
+                  <Text style={[styles.label, { color: theme.colors.text }]}>Confirm New Password</Text>
+                  <View style={[styles.inputRow, { borderColor: error ? theme.colors.danger : theme.colors.inputBorder }]}>
+                    <TextInput
+                      style={[
+                        styles.inputInner,
+                        { backgroundColor: theme.colors.inputBackground, color: theme.colors.text },
+                      ]}
+                      onBlur={onBlur}
+                      onChangeText={onChange}
+                      value={value}
+                      secureTextEntry={!showConfirm}
+                      placeholder="Re-enter new password"
+                      placeholderTextColor={theme.colors.placeholder}
+                    />
+                    <Pressable onPress={() => setShowConfirm((prev) => !prev)}>
+                      <Text style={[styles.inlineAction, { color: theme.colors.primary }]}>
+                        {showConfirm ? "Hide" : "Show"}
                       </Text>
                     </Pressable>
                   </View>
@@ -184,15 +185,9 @@ export default function RegisterScreen() {
               onPress={handleSubmit(onSubmit)}
             >
               <Text style={[styles.buttonText, { color: theme.colors.primaryText }]}>
-                {isSubmitting ? "Creating..." : "Create Account"}
+                {isSubmitting ? "Updating..." : "Update Password"}
               </Text>
             </Pressable>
-
-            <Link href="/login" asChild>
-              <Pressable>
-                <Text style={[styles.link, { color: theme.colors.primary }]}>Already registered? Login</Text>
-              </Pressable>
-            </Link>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -204,23 +199,13 @@ const styles = StyleSheet.create({
   safe: { flex: 1 },
   flex: { flex: 1 },
   container: { flexGrow: 1, justifyContent: "center", padding: 18 },
-  card: {
-    borderRadius: 14,
-    padding: 16,
-    borderWidth: 1,
-  },
+  card: { borderRadius: 14, padding: 16, borderWidth: 1 },
   headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  title: { fontSize: 24, fontWeight: "700" },
+  backText: { fontSize: 12, fontWeight: "800" },
+  title: { fontSize: 22, fontWeight: "800", marginTop: 10 },
   subtitle: { marginTop: 6, marginBottom: 14, fontSize: 14 },
   fieldWrap: { marginBottom: 10 },
   label: { fontSize: 13, marginBottom: 6, fontWeight: "600" },
-  input: {
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  error: { marginTop: 5, fontSize: 12 },
   inputRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -235,12 +220,13 @@ const styles = StyleSheet.create({
     paddingRight: 10,
   },
   inlineAction: { fontWeight: "800", fontSize: 12, paddingVertical: 10 },
+  error: { marginTop: 5, fontSize: 12 },
   button: {
     marginTop: 8,
     borderRadius: 10,
     paddingVertical: 12,
     alignItems: "center",
   },
-  buttonText: { fontWeight: "700", fontSize: 14 },
-  link: { textAlign: "center", marginTop: 14, fontWeight: "700" },
+  buttonText: { fontWeight: "800", fontSize: 14 },
 });
+

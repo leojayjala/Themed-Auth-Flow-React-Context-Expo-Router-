@@ -16,7 +16,9 @@ import { StatusBar } from "expo-status-bar";
 import { router } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import { Controller, useForm } from "react-hook-form";
+import { ThemeToggle } from "./_components/ThemeToggle";
 import { useAuthFlow } from "./_layout";
+import { getStatusBarStyle, useTheme } from "./_theme";
 
 type SetupFormValues = {
   profilePhotoUri: string;
@@ -25,9 +27,18 @@ type SetupFormValues = {
 };
 
 export default function SetupScreen() {
-  const { setProfile } = useAuthFlow();
-  const { control, handleSubmit, setValue, trigger, watch } = useForm<SetupFormValues>({
+  const { theme, themeName } = useTheme();
+  const { setIsLoggedIn, setProfile } = useAuthFlow();
+  const {
+    control,
+    handleSubmit,
+    setValue,
+    trigger,
+    watch,
+    formState: { isSubmitting, isValid },
+  } = useForm<SetupFormValues>({
     defaultValues: { profilePhotoUri: "", firstName: "", lastName: "" },
+    mode: "onChange",
   });
 
   const photoUri = watch("profilePhotoUri");
@@ -59,17 +70,21 @@ export default function SetupScreen() {
       profilePhotoUri: values.profilePhotoUri,
     });
 
+    setIsLoggedIn(true);
     router.replace("/home");
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <StatusBar style="dark" />
+    <SafeAreaView style={[styles.safe, { backgroundColor: theme.colors.screen }]}>
+      <StatusBar style={getStatusBarStyle(themeName)} />
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-          <View style={styles.card}>
-            <Text style={styles.title}>Setup Account</Text>
-            <Text style={styles.subtitle}>Complete your profile.</Text>
+          <View style={[styles.card, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+            <View style={styles.headerRow}>
+              <Text style={[styles.title, { color: theme.colors.title }]}>Setup Account</Text>
+              <ThemeToggle />
+            </View>
+            <Text style={[styles.subtitle, { color: theme.colors.mutedText }]}>Complete your profile.</Text>
 
             <Controller
               control={control}
@@ -77,12 +92,14 @@ export default function SetupScreen() {
               rules={{ required: "Profile Photo is required." }}
               render={({ fieldState: { error } }) => (
                 <View style={styles.fieldWrap}>
-                  <Text style={styles.label}>Profile Photo</Text>
-                  <Pressable style={styles.secondaryButton} onPress={pickImage}>
-                    <Text style={styles.secondaryButtonText}>{photoUri ? "Change Photo" : "Choose Photo"}</Text>
+                  <Text style={[styles.label, { color: theme.colors.text }]}>Profile Photo</Text>
+                  <Pressable style={[styles.secondaryButton, { borderColor: theme.colors.primary }]} onPress={pickImage}>
+                    <Text style={[styles.secondaryButtonText, { color: theme.colors.primary }]}>
+                      {photoUri ? "Change Photo" : "Choose Photo"}
+                    </Text>
                   </Pressable>
                   {photoUri ? <Image source={{ uri: photoUri }} style={styles.avatar} /> : null}
-                  {error ? <Text style={styles.error}>{error.message}</Text> : null}
+                  {error ? <Text style={[styles.error, { color: theme.colors.danger }]}>{error.message}</Text> : null}
                 </View>
               )}
             />
@@ -96,16 +113,25 @@ export default function SetupScreen() {
               }}
               render={({ field: { onChange, onBlur, value }, fieldState: { error } }) => (
                 <View style={styles.fieldWrap}>
-                  <Text style={styles.label}>First Name</Text>
+                  <Text style={[styles.label, { color: theme.colors.text }]}>First Name</Text>
                   <TextInput
-                    style={[styles.input, error ? styles.inputError : null]}
+                    style={[
+                      styles.input,
+                      {
+                        backgroundColor: theme.colors.inputBackground,
+                        borderColor: theme.colors.inputBorder,
+                        color: theme.colors.text,
+                      },
+                      error ? { borderColor: theme.colors.danger } : null,
+                    ]}
                     onBlur={onBlur}
                     onChangeText={onChange}
                     value={value}
                     autoCapitalize="words"
                     placeholder="First name"
+                    placeholderTextColor={theme.colors.placeholder}
                   />
-                  {error ? <Text style={styles.error}>{error.message}</Text> : null}
+                  {error ? <Text style={[styles.error, { color: theme.colors.danger }]}>{error.message}</Text> : null}
                 </View>
               )}
             />
@@ -119,22 +145,40 @@ export default function SetupScreen() {
               }}
               render={({ field: { onChange, onBlur, value }, fieldState: { error } }) => (
                 <View style={styles.fieldWrap}>
-                  <Text style={styles.label}>Last Name</Text>
+                  <Text style={[styles.label, { color: theme.colors.text }]}>Last Name</Text>
                   <TextInput
-                    style={[styles.input, error ? styles.inputError : null]}
+                    style={[
+                      styles.input,
+                      {
+                        backgroundColor: theme.colors.inputBackground,
+                        borderColor: theme.colors.inputBorder,
+                        color: theme.colors.text,
+                      },
+                      error ? { borderColor: theme.colors.danger } : null,
+                    ]}
                     onBlur={onBlur}
                     onChangeText={onChange}
                     value={value}
                     autoCapitalize="words"
                     placeholder="Last name"
+                    placeholderTextColor={theme.colors.placeholder}
                   />
-                  {error ? <Text style={styles.error}>{error.message}</Text> : null}
+                  {error ? <Text style={[styles.error, { color: theme.colors.danger }]}>{error.message}</Text> : null}
                 </View>
               )}
             />
 
-            <Pressable style={styles.button} onPress={handleSubmit(onSubmit)}>
-              <Text style={styles.buttonText}>Finish Setup</Text>
+            <Pressable
+              style={[
+                styles.button,
+                { backgroundColor: theme.colors.primary, opacity: !isValid || isSubmitting ? 0.6 : 1 },
+              ]}
+              disabled={!isValid || isSubmitting}
+              onPress={handleSubmit(onSubmit)}
+            >
+              <Text style={[styles.buttonText, { color: theme.colors.primaryText }]}>
+                {isSubmitting ? "Saving..." : "Finish Setup"}
+              </Text>
             </Pressable>
           </View>
         </ScrollView>
@@ -144,46 +188,40 @@ export default function SetupScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#eef2f7" },
+  safe: { flex: 1 },
   flex: { flex: 1 },
   container: { flexGrow: 1, justifyContent: "center", padding: 18 },
   card: {
-    backgroundColor: "#ffffff",
     borderRadius: 14,
     padding: 16,
     borderWidth: 1,
-    borderColor: "#d7deea",
   },
-  title: { fontSize: 24, fontWeight: "700", color: "#0f172a" },
-  subtitle: { marginTop: 6, marginBottom: 14, color: "#475569", fontSize: 14 },
+  headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  title: { fontSize: 24, fontWeight: "700" },
+  subtitle: { marginTop: 6, marginBottom: 14, fontSize: 14 },
   fieldWrap: { marginBottom: 10 },
-  label: { fontSize: 13, marginBottom: 6, color: "#1e293b", fontWeight: "600" },
+  label: { fontSize: 13, marginBottom: 6, fontWeight: "600" },
   input: {
     borderWidth: 1,
-    borderColor: "#cbd5e1",
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    backgroundColor: "#ffffff",
   },
-  inputError: { borderColor: "#b42318" },
-  error: { marginTop: 5, color: "#b42318", fontSize: 12 },
+  error: { marginTop: 5, fontSize: 12 },
   button: {
     marginTop: 8,
-    backgroundColor: "#1d4ed8",
     borderRadius: 10,
     paddingVertical: 12,
     alignItems: "center",
   },
-  buttonText: { color: "#ffffff", fontWeight: "700", fontSize: 14 },
+  buttonText: { fontWeight: "700", fontSize: 14 },
   secondaryButton: {
     borderWidth: 1,
-    borderColor: "#1d4ed8",
     borderRadius: 10,
     paddingVertical: 10,
     alignItems: "center",
   },
-  secondaryButtonText: { color: "#1d4ed8", fontWeight: "700" },
+  secondaryButtonText: { fontWeight: "700" },
   avatar: {
     width: 90,
     height: 90,
