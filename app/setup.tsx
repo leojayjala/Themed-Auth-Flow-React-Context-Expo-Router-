@@ -28,7 +28,7 @@ type SetupFormValues = {
 
 export default function SetupScreen() {
   const { theme, themeName } = useTheme();
-  const { setIsLoggedIn, setProfile } = useAuthFlow();
+  const { isHydrated, user, setProfile } = useAuthFlow();
   const {
     control,
     handleSubmit,
@@ -42,6 +42,11 @@ export default function SetupScreen() {
   });
 
   const photoUri = watch("profilePhotoUri");
+
+  React.useEffect(() => {
+    if (!isHydrated) return;
+    if (!user) router.replace("/login");
+  }, [isHydrated, user]);
 
   const pickImage = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -70,8 +75,7 @@ export default function SetupScreen() {
       profilePhotoUri: values.profilePhotoUri,
     });
 
-    setIsLoggedIn(true);
-    router.replace("/home");
+    router.replace("/");
   };
 
   return (

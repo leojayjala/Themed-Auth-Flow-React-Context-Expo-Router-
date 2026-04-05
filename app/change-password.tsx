@@ -16,6 +16,7 @@ import { router } from "expo-router";
 import { Controller, useForm } from "react-hook-form";
 import { ThemeToggle } from "./_components/ThemeToggle";
 import { useAuthFlow } from "./_layout";
+import { getFirebaseAuthErrorMessage } from "./_firebaseAuthErrors";
 import { getStatusBarStyle, useTheme } from "./_theme";
 
 type ChangePasswordFormValues = {
@@ -26,15 +27,18 @@ type ChangePasswordFormValues = {
 
 export default function ChangePasswordScreen() {
   const { theme, themeName } = useTheme();
-  const { credentials, isHydrated, isLoggedIn, setCredentials } = useAuthFlow();
+  const { user, isHydrated, changePassword } = useAuthFlow();
   const [showCurrent, setShowCurrent] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isHydrated) return;
-    if (!isLoggedIn || !credentials) router.replace("/login");
-  }, [isHydrated, isLoggedIn, credentials]);
+    if (!user) router.replace("/login");
+  }, [isHydrated, user]);
+
+  const canChangePassword = Boolean(user?.providerData?.some((p) => p.providerId === "password"));
 
   const {
     control,
@@ -48,12 +52,20 @@ export default function ChangePasswordScreen() {
 
   const newPassword = watch("newPassword");
 
-  const onSubmit = (values: ChangePasswordFormValues) => {
-    if (!credentials) return;
+  const onSubmit = async (values: ChangePasswordFormValues) => {
+    setFormError(null);
+    if (!canChangePassword) {
+      setFormError("This account uses Google sign-in and does not have a password to change.");
+      return;
+    }
 
-    setCredentials({ ...credentials, password: values.newPassword });
-    Alert.alert("Success", "Your password has been updated.");
-    router.replace("/home");
+    try {
+      await changePassword(values.currentPassword, values.newPassword);
+      Alert.alert("Success", "Your password has been updated.");
+      router.replace("/home");
+    } catch (e) {
+      setFormError(getFirebaseAuthErrorMessage(e));
+    }
   };
 
   return (
@@ -70,15 +82,13 @@ export default function ChangePasswordScreen() {
             </View>
 
             <Text style={[styles.title, { color: theme.colors.title }]}>Change Password</Text>
-            <Text style={[styles.subtitle, { color: theme.colors.mutedText }]}>Update your password (local only).</Text>
+            <Text style={[styles.subtitle, { color: theme.colors.mutedText }]}>Update your Firebase password.</Text>
 
             <Controller
               control={control}
               name="currentPassword"
               rules={{
                 required: "Current password is required.",
-                validate: (value: string) =>
-                  !credentials || value === credentials.password || "Incorrect current password.",
               }}
               render={({ field: { onChange, onBlur, value }, fieldState: { error } }) => (
                 <View style={styles.fieldWrap}>
@@ -92,6 +102,7 @@ export default function ChangePasswordScreen() {
                       onBlur={onBlur}
                       onChangeText={onChange}
                       value={value}
+                      editable={canChangePassword}
                       secureTextEntry={!showCurrent}
                       placeholder="Enter current password"
                       placeholderTextColor={theme.colors.placeholder}
@@ -113,7 +124,6 @@ export default function ChangePasswordScreen() {
               rules={{
                 required: "New password is required.",
                 minLength: { value: 6, message: "New password must be at least 6 characters." },
-                validate: (value: string) => (!credentials || value !== credentials.password ? true : "Use a new password."),
               }}
               render={({ field: { onChange, onBlur, value }, fieldState: { error } }) => (
                 <View style={styles.fieldWrap}>
@@ -127,6 +137,7 @@ export default function ChangePasswordScreen() {
                       onBlur={onBlur}
                       onChangeText={onChange}
                       value={value}
+                      editable={canChangePassword}
                       secureTextEntry={!showNew}
                       placeholder="Enter new password"
                       placeholderTextColor={theme.colors.placeholder}
@@ -161,6 +172,7 @@ export default function ChangePasswordScreen() {
                       onBlur={onBlur}
                       onChangeText={onChange}
                       value={value}
+                      editable={canChangePassword}
                       secureTextEntry={!showConfirm}
                       placeholder="Re-enter new password"
                       placeholderTextColor={theme.colors.placeholder}
@@ -176,12 +188,14 @@ export default function ChangePasswordScreen() {
               )}
             />
 
+            {formError ? <Text style={[styles.error, { color: theme.colors.danger }]}>{formError}</Text> : null}
+
             <Pressable
               style={[
                 styles.button,
                 { backgroundColor: theme.colors.primary, opacity: !isValid || isSubmitting ? 0.6 : 1 },
               ]}
-              disabled={!isValid || isSubmitting}
+              disabled={!isValid || isSubmitting || !canChangePassword}
               onPress={handleSubmit(onSubmit)}
             >
               <Text style={[styles.buttonText, { color: theme.colors.primaryText }]}>

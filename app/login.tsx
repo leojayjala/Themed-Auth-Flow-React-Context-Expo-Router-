@@ -14,7 +14,9 @@ import { StatusBar } from "expo-status-bar";
 import { Link, router } from "expo-router";
 import { Controller, useForm } from "react-hook-form";
 import { ThemeToggle } from "./_components/ThemeToggle";
+import { GoogleAuthButton } from "./_components/GoogleAuthButton";
 import { useAuthFlow } from "./_layout";
+import { getFirebaseAuthErrorMessage } from "./_firebaseAuthErrors";
 import { getStatusBarStyle, useTheme } from "./_theme";
 
 type LoginFormValues = {
@@ -24,9 +26,11 @@ type LoginFormValues = {
 
 export default function LoginScreen() {
   const { theme, themeName } = useTheme();
-  const { credentials, rememberMe, setIsLoggedIn, setRememberMe } = useAuthFlow();
+  const { rememberMe, setRememberMe, signInWithEmail } = useAuthFlow();
   const [formError, setFormError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+
+  const isFirebaseConfigured = Boolean(process.env.EXPO_PUBLIC_FIREBASE_API_KEY);
 
   const {
     control,
@@ -37,17 +41,14 @@ export default function LoginScreen() {
     mode: "onChange",
   });
 
-  const onSubmit = (values: LoginFormValues) => {
+  const onSubmit = async (values: LoginFormValues) => {
     setFormError(null);
-    const email = values.email.trim().toLowerCase();
-
-    if (!credentials || credentials.email !== email || credentials.password !== values.password) {
-      setFormError("Invalid email or password.");
-      return;
+    try {
+      await signInWithEmail(values.email, values.password);
+      router.replace("/");
+    } catch (e) {
+      setFormError(getFirebaseAuthErrorMessage(e));
     }
-
-    setIsLoggedIn(true);
-    router.replace("/home");
   };
 
   return (
@@ -169,6 +170,14 @@ export default function LoginScreen() {
               </Text>
             </Pressable>
 
+            <Text style={[styles.or, { color: theme.colors.mutedText }]}>or</Text>
+            <GoogleAuthButton label="Continue with Google" />
+            {!isFirebaseConfigured ? (
+              <Text style={[styles.envHint, { color: theme.colors.danger }]}>
+                Missing Firebase env vars. Create a `.env` file from `.env.example` and restart Expo.
+              </Text>
+            ) : null}
+
             <Link href="/register" asChild>
               <Pressable>
                 <Text style={[styles.link, { color: theme.colors.primary }]}>Need an account? Register</Text>
@@ -240,5 +249,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   buttonText: { fontWeight: "700", fontSize: 14 },
+  or: { textAlign: "center", marginTop: 14, fontWeight: "800", fontSize: 12 },
+  envHint: { marginTop: 10, fontSize: 12, textAlign: "center", fontWeight: "700" },
   link: { textAlign: "center", marginTop: 14, fontWeight: "700" },
 });

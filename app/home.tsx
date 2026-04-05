@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo } from "react";
-import { Alert, Image, Pressable, SafeAreaView, StyleSheet, Text, View } from "react-native";
+import { Alert, Image, Platform, Pressable, SafeAreaView, StyleSheet, Text, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { router } from "expo-router";
 import { useAuthFlow } from "./_layout";
@@ -8,12 +8,12 @@ import { getStatusBarStyle, useTheme } from "./_theme";
 
 export default function HomeScreen() {
   const { theme, themeName } = useTheme();
-  const { isHydrated, isLoggedIn, profile, setCredentials, setIsLoggedIn, setProfile } = useAuthFlow();
+  const { isHydrated, user, profile, signOut } = useAuthFlow();
 
   useEffect(() => {
     if (!isHydrated) return;
-    if (!isLoggedIn) router.replace("/login");
-  }, [isHydrated, isLoggedIn]);
+    if (!user) router.replace("/login");
+  }, [isHydrated, user]);
 
   const fullName = useMemo(
     () => `${profile.firstName || ""} ${profile.lastName || ""}`.trim() || "User",
@@ -21,18 +21,23 @@ export default function HomeScreen() {
   );
 
   const logout = () => {
+    const run = async () => {
+      try {
+        await signOut();
+      } finally {
+        router.replace("/login");
+      }
+    };
+
+    if (Platform.OS === "web") {
+      const ok = globalThis.confirm?.("Are you sure you want to log out?") ?? true;
+      if (ok) void run();
+      return;
+    }
+
     Alert.alert("Logout", "Are you sure you want to log out?", [
       { text: "Cancel", style: "cancel" },
-      {
-        text: "Logout",
-        style: "destructive",
-        onPress: () => {
-          setIsLoggedIn(false);
-          setCredentials(null);
-          setProfile({ firstName: "", lastName: "", profilePhotoUri: "" });
-          router.replace("/login");
-        },
-      },
+      { text: "Logout", style: "destructive", onPress: () => void run() },
     ]);
   };
 
@@ -49,6 +54,7 @@ export default function HomeScreen() {
 
           {profile.profilePhotoUri ? <Image source={{ uri: profile.profilePhotoUri }} style={styles.avatar} /> : null}
           <Text style={[styles.profileName, { color: theme.colors.text }]}>{fullName}</Text>
+          {user?.email ? <Text style={[styles.email, { color: theme.colors.mutedText }]}>{user.email}</Text> : null}
 
           <Pressable
             style={[styles.secondaryButton, { borderColor: theme.colors.primary }]}
@@ -91,6 +97,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginTop: 6,
   },
+  email: { textAlign: "center", marginTop: 4, fontSize: 12, fontWeight: "700" },
   secondaryButton: {
     marginTop: 14,
     borderWidth: 1,

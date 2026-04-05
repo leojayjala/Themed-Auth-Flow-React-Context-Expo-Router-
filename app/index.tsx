@@ -5,13 +5,19 @@ import { useAuthFlow } from "./_layout";
 import { useTheme } from "./_theme";
 
 export default function Index() {
-  const { isHydrated, isLoggedIn } = useAuthFlow();
+  const { isHydrated, user, profile } = useAuthFlow();
   const { theme } = useTheme();
 
   useEffect(() => {
     if (!isHydrated) return;
-    router.replace(isLoggedIn ? "/home" : "/login");
-  }, [isHydrated, isLoggedIn]);
+    if (!user) {
+      router.replace("/login");
+      return;
+    }
+
+    const hasProfile = Boolean(profile.firstName && profile.lastName);
+    router.replace(hasProfile ? "/home" : "/setup");
+  }, [isHydrated, user, profile.firstName, profile.lastName]);
 
   return (
     <View style={[styles.wrap, { backgroundColor: theme.colors.screen }]}>
